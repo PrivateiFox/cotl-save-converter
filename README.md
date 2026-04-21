@@ -50,55 +50,49 @@ uv sync
 
 ## Usage
 
+You can see all available commands and options by running:
+```bash
+uv run python convert.py --help
+```
+
 ### iOS → Steam (the main use case)
+
+Steam files (even the encrypted ones) should end in `.json` for the game to recognize them as fallback saves. iOS files typically have no suffix.
 
 ```bash
 # Convert the save slot
-uv run python convert.py ios_to_steam path/to/ios/slot_0 ~/Library/Application\ Support/Massive\ Monster/Cult\ Of\ The\ Lamb/saves/slot_0.json
+uv run python convert.py ios_to_steam path/to/ios/slot_0 path/to/steam/slot_0.json
 
 # Convert the slot metadata (shown on the load screen)
-uv run python convert.py ios_to_steam path/to/ios/meta_0 ~/Library/Application\ Support/Massive\ Monster/Cult\ Of\ The\ Lamb/saves/meta_0.json
+uv run python convert.py ios_to_steam path/to/ios/meta_0 path/to/steam/meta_0.json
 
 # Convert global persistence (unlocks Survival Mode etc.)
-uv run python convert.py ios_to_steam path/to/ios/persistence ~/Library/Application\ Support/Massive\ Monster/Cult\ Of\ The\ Lamb/saves/persistence.json
+uv run python convert.py ios_to_steam path/to/ios/persistence path/to/steam/persistence.json
 ```
 
-Then, if you're on Steam 1.5+, **delete or move `slot_0.mp` and `meta_0.mp`** from the saves folder. The game will load the JSON files instead.
+Then, if you're on Steam 1.5+, **delete or move any existing `.mp` files** (like `slot_0.mp`) from the saves folder. The game will load the `.json` files instead.
 
-> **Note:** Back up your existing Steam saves before overwriting anything.
-
-Once you load the save and let the game save normally, it will write a new `slot_0.mp` alongside the JSON file. From that point on the `.mp` is the authoritative save and the JSON is ignored — your save has been fully migrated.
+> **Note:** Always back up your existing saves before overwriting them.
 
 ### Inspect a save as JSON
 
 ```bash
-# Compact (default)
+# Decompress iOS save to JSON (prints to terminal)
 uv run python convert.py ios_to_json path/to/ios/slot_0
 
-# Pretty-printed, written to a file
-uv run python convert.py ios_to_json path/to/ios/slot_0 slot_0.json --pretty
-```
+# Decompress iOS save to a pretty-printed JSON file
+uv run python convert.py ios_to_json path/to/ios/slot_0 slot_0_dec.json --pretty
 
-### Decrypt a Steam JSON save
-
-```bash
-uv run python convert.py steam_to_json path/to/steam/slot_0 slot_0.json --pretty
+# Decrypt a Steam save to a pretty-printed JSON file
+uv run python convert.py steam_to_json path/to/steam/slot_0.json slot_0_dec.json --pretty
 ```
 
 ### Re-encrypt an edited JSON back to Steam format
 
 ```bash
-uv run python convert.py json_to_steam slot_0_edited.json path/to/steam/slot_0.json
+uv run python convert.py json_to_steam slot_0_dec.json path/to/steam/slot_0.json
 ```
 
-## All commands
-
-```
-ios_to_json   <infile> [outfile] [--pretty]   Decompress iOS save to JSON
-ios_to_steam  <infile> <outfile>              Convert iOS save to Steam format
-steam_to_json <infile> [outfile] [--pretty]   Decrypt Steam save to JSON
-json_to_steam <infile> <outfile>              Encrypt JSON to Steam format
-```
 
 ## Related tools
 
