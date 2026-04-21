@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""
+Parse lamb-mp-decoder/src/keys.ts and emit keys.py.
+Usage: python gen_keys.py path/to/keys.ts keys.py
+"""
+import re
+import sys
+from pathlib import Path
+
+
+def to_py_name(ts_name: str) -> str:
+    """Convert camelCase TS const name to UPPER_SNAKE_CASE Python name."""
+    # e.g. vector2Keys -> VECTOR2_KEYS, slot_mp_keys -> SLOT_MP_KEYS
+    s = re.sub(r'([A-Z])', r'_\1', ts_name)
+    return s.upper().lstrip('_')
+
+
+def parse_keys_ts(src: str) -> dict:
+    """
+    Return an ordered dict of {ts_const_name: raw_block_string}.
+    Processes blocks in declaration order so forward references don't arise.
+    """
+    results = {}
+    i = 0
+    pattern = re.compile(
+        r'(?:export\s+)?const\s+(\w+)\s*(?::\s*Keys)?\s*=\s*\{'
+    )
+    while i < len(src):
+        m = pattern.search(src, i)
+        if not m:
+            break
+        name = m.group(1)
+        # Only process Keys dicts (named xxxKeys or slot/meta_mp_keys)
+        if not (name.endswith('Keys') or name.endswith('_keys')):
+            i = m.end()
+            continue
+        # Extract the full brace-delimited block
+        start = m.end() - 1  # position of '{'
+        depth = 0
+        j = start
+        while j < len(src):
+            if src[j] == '{':
+                depth += 1
+            elif src[j] == '}':
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        block = src[start:j + 1]
+        results[name] = block
+        i = j + 1
+    return results
+
+
+def strip_line_comments(s: str) -> str:
+    """Remove // ... line comments from a string."""
+    result = []
+    i = 0
+    while i < len(s):
+        if s[i] == '/' and i + 1 < len(s) and s[i + 1] == '/':
+            # Skip until end of line
+            while i < len(s) and s[i] != '\n':
+                i += 1
+        else:
+            result.append(s[i])
+            i += 1
+    return ''.join(result)
+
+
+def split_top_level(s: str) -> list:
+    """Split string on commas that are not inside braces or brackets."""
+    parts = []
+    depth = 0
+    current = []
+    for ch in s:
+        if ch in ('{', '['):
+            depth += 1
+        elif ch in ('}', ']'):
+            depth -= 1
+        if ch == ',' and depth == 0:
+            parts.append(''.join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append(''.join(current))
+    return parts
+
+
+def convert_block(block: str, name_map: dict) -> str:
+    """
+    Convert a TypeScript dict block to a Python dict literal string.
+    Handles:
+      0: "X"                              -> 0: "X",
+      5: {name: "pos", keys: vector2Keys} -> 5: {"name": "pos", "keys": VECTOR2_KEYS},
+      7: {name: "items", keys: [itemKeys]}-> 7: {"name": "items", "keys": [ITEM_KEYS]},
+    """
+    lines = []
+    # Strip outer braces and remove line comments
+    inner = strip_line_comments(block.strip()[1:-1])
+    entries = split_top_level(inner)
+    for entry in entries:
+        entry = entry.strip().strip(',').strip()
+        if not entry or entry.startswith('//'):
+            continue
+        # Match: NUMBER: VALUE
+        m = re.match(r'^(\d+)\s*:', entry)
+        if not m:
+            continue
+        idx = int(m.group(1))
+        val_str = entry[m.end():].strip()
+
+        if val_str.startswith('"') or val_str.startswith("'"):
+            # Simple string value
+            py_val = val_str.replace("'", '"')
+            lines.append(f'    {idx}: {py_val},')
+        elif val_str.startswith('{'):
+            # Nested object: {name: "...", keys: xxxKeys} or {name: "...", keys: [xxxKeys]}
+            name_m = re.search(r'name\s*:\s*["\']([^"\']+)["\']', val_str)
+            keys_m = re.search(r'keys\s*:\s*(\[?\w+\]?)', val_str)
+            if name_m and keys_m:
+                field_name = name_m.group(1)
+                keys_ref = keys_m.group(1)
+                if keys_ref.startswith('['):
+                    inner_ref = keys_ref[1:-1]
+                    py_keys_ref = name_map.get(inner_ref, to_py_name(inner_ref))
+                    py_val = f'{{"name": "{field_name}", "keys": [{py_keys_ref}]}}'
+                else:
+                    py_keys_ref = name_map.get(keys_ref, to_py_name(keys_ref))
+                    py_val = f'{{"name": "{field_name}", "keys": {py_keys_ref}}}'
+                lines.append(f'    {idx}: {py_val},')
+        # else: skip unrecognised entries
+    return '{\n' + '\n'.join(lines) + '\n}'
+
+
+def main():
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} path/to/keys.ts output/keys.py")
+        sys.exit(1)
+
+    src = Path(sys.argv[1]).read_text(encoding='utf-8')
+    raw_blocks = parse_keys_ts(src)
+
+    # Build name_map: ts_const_name -> python_const_name
+    name_map = {ts: to_py_name(ts) for ts in raw_blocks}
+
+    output_lines = [
+        '# AUTO-GENERATED by gen_keys.py — do not edit by hand.',
+        '# Source: lamb-mp-decoder/src/keys.ts',
+        '# fmt: off',
+        '',
+    ]
+
+    # Emit sub-key dicts first (non-exported), then the two exported ones
+    exported = {'slot_mp_keys', 'meta_mp_keys'}
+    sub_keys = [k for k in raw_blocks if k not in exported]
+    ordered = sub_keys + [k for k in exported if k in raw_blocks]
+
+    for ts_name in ordered:
+        py_name = name_map[ts_name]
+        block_str = convert_block(raw_blocks[ts_name], name_map)
+        output_lines.append(f'{py_name} = {block_str}')
+        output_lines.append('')
+
+    # Convenience aliases
+    output_lines += [
+        '# Convenience aliases',
+        'SLOT_KEYS = SLOT_MP_KEYS',
+        'META_KEYS = META_MP_KEYS',
+    ]
+
+    Path(sys.argv[2]).write_text('\n'.join(output_lines) + '\n', encoding='utf-8')
+    print(f"Written {sys.argv[2]} ({len(ordered)} dicts)")
+
+
+if __name__ == '__main__':
+    main()
