@@ -2,6 +2,12 @@
 """
 Cult of the Lamb save converter
 Supports iOS (ZB+gzip) and Steam (E+AES-128-CBC) formats.
+
+Examples:
+  python convert.py ios_to_json   slot_0 slot_0_dec.json --pretty
+  python convert.py ios_to_steam  slot_0 slot_0.json
+  python convert.py steam_to_json slot_0.json slot_0_dec.json
+  python convert.py json_to_steam slot_0_dec.json slot_0.json
 """
 
 import argparse
@@ -121,25 +127,25 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     p_ios_to_json = subparsers.add_parser("ios_to_json", help="Decompress iOS save to JSON")
-    p_ios_to_json.add_argument("infile", help="Input file")
-    p_ios_to_json.add_argument("outfile", nargs="?", help="Output file")
+    p_ios_to_json.add_argument("infile", help="Input iOS file (no suffix)")
+    p_ios_to_json.add_argument("outfile", nargs="?", help="Output JSON file")
     p_ios_to_json.add_argument("--pretty", action="store_true", help="Pretty print JSON")
     p_ios_to_json.set_defaults(func=cmd_ios_to_json)
 
     p_ios_to_steam = subparsers.add_parser("ios_to_steam", help="Convert iOS save to Steam format")
-    p_ios_to_steam.add_argument("infile", help="Input file")
-    p_ios_to_steam.add_argument("outfile", help="Output file")
+    p_ios_to_steam.add_argument("infile", help="Input iOS file (no suffix)")
+    p_ios_to_steam.add_argument("outfile", help="Output Steam file (ending in .json)")
     p_ios_to_steam.set_defaults(func=cmd_ios_to_steam)
 
     p_steam_to_json = subparsers.add_parser("steam_to_json", help="Decrypt Steam save to JSON")
-    p_steam_to_json.add_argument("infile", help="Input file")
-    p_steam_to_json.add_argument("outfile", nargs="?", help="Output file")
+    p_steam_to_json.add_argument("infile", help="Input Steam file (ending in .json)")
+    p_steam_to_json.add_argument("outfile", nargs="?", help="Output JSON file")
     p_steam_to_json.add_argument("--pretty", action="store_true", help="Pretty print JSON")
     p_steam_to_json.set_defaults(func=cmd_steam_to_json)
 
     p_json_to_steam = subparsers.add_parser("json_to_steam", help="Encrypt JSON to Steam format")
-    p_json_to_steam.add_argument("infile", help="Input file")
-    p_json_to_steam.add_argument("outfile", help="Output file")
+    p_json_to_steam.add_argument("infile", help="Input JSON file")
+    p_json_to_steam.add_argument("outfile", help="Output Steam file (ending in .json)")
     p_json_to_steam.set_defaults(func=cmd_json_to_steam)
 
     args = parser.parse_args()

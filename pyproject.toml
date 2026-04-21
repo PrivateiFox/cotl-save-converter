@@ -6,4 +6,6 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "cryptography>=46.0.7",
+    "lz4>=4.4.5",
+    "msgpack>=1.1.2",
 ]
