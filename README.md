@@ -67,6 +67,8 @@ Then, if you're on Steam 1.5+, **delete or move `slot_0.mp` and `meta_0.mp`** fr
 
 > **Note:** Back up your existing Steam saves before overwriting anything.
 
+Once you load the save and let the game save normally, it will write a new `slot_0.mp` alongside the JSON file. From that point on the `.mp` is the authoritative save and the JSON is ignored — your save has been fully migrated.
+
 ### Inspect a save as JSON
 
 ```bash
@@ -97,3 +99,11 @@ ios_to_steam  <infile> <outfile>              Convert iOS save to Steam format
 steam_to_json <infile> [outfile] [--pretty]   Decrypt Steam save to JSON
 json_to_steam <infile> <outfile>              Encrypt JSON to Steam format
 ```
+
+## Related tools
+
+- **[CotlSaveExtractorLoader](https://github.com/osoclos/CotlSaveExtractorLoader)** — BepInEx plugin for Steam 1.5.x. Extracts `.mp` saves to JSON on each in-game save, and can force the game to load JSON files instead of `.mp`. Useful if you want to keep editing saves after migrating to 1.5.x.
+
+- **[lamb-mp-decoder](https://github.com/matthewmmorrow/lamb-mp-decoder)** — TypeScript library that decodes the 1.5.x `.mp` format (AES → MessagePack → LZ4). Read-only; useful for inspecting 1.5.x saves without a mod.
+
+- **[COTL-SaveDecryptor](https://github.com/Pentalex/COTL-SaveDecryptor)** — Browser-based decryptor for the pre-1.5 Steam JSON format.
