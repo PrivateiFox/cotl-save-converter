@@ -3,13 +3,14 @@
 Cult of the Lamb save converter
 Supports iOS (ZB+gzip) and Steam (E+AES-128-CBC) formats.
 
-Usage:
-  python convert.py ios_to_json   <infile> [outfile]
-  python convert.py ios_to_steam  <infile> <outfile>
-  python convert.py steam_to_json <infile> [outfile]
-  python convert.py json_to_steam <infile> <outfile>
+Examples:
+  python convert.py ios_to_json   slot_0 slot_0_dec.json --pretty
+  python convert.py ios_to_steam  slot_0 slot_0.json
+  python convert.py steam_to_json slot_0.json slot_0_dec.json
+  python convert.py json_to_steam slot_0_dec.json slot_0.json
 """
 
+import argparse
 import gzip
 import json
 import secrets
@@ -72,84 +73,83 @@ def write_steam(json_str: str, path: str) -> None:
 # ── Commands ──────────────────────────────────────────────────────────────────
 
 def cmd_ios_to_json(args):
-    if len(args) < 1:
-        die("Usage: ios_to_json <infile> [outfile] [--pretty]")
-    pretty = "--pretty" in args
-    args = [a for a in args if a != "--pretty"]
-    src = args[0]
-    text = read_ios(src)
-    if pretty:
+    text = read_ios(args.infile)
+    if args.pretty:
         try:
             text = json.dumps(json.loads(text), indent=2, ensure_ascii=False)
         except json.JSONDecodeError:
             pass
-    if len(args) >= 2:
-        with open(args[1], "w", encoding="utf-8") as f:
+    if args.outfile:
+        with open(args.outfile, "w", encoding="utf-8") as f:
             f.write(text)
         size = len(text.encode("utf-8"))
-        print(f"Written to {args[1]} ({size:,} bytes)")
+        print(f"Written to {args.outfile} ({size:,} bytes)")
     else:
         print(text)
 
 
 def cmd_ios_to_steam(args):
-    if len(args) < 2:
-        die("Usage: ios_to_steam <infile> <outfile>")
-    text = read_ios(args[0])
-    write_steam(text, args[1])
-    print(f"Converted {args[0]} → {args[1]} (Steam format)")
+    text = read_ios(args.infile)
+    write_steam(text, args.outfile)
+    print(f"Converted {args.infile} → {args.outfile} (Steam format)")
 
 
 def cmd_steam_to_json(args):
-    if len(args) < 1:
-        die("Usage: steam_to_json <infile> [outfile] [--pretty]")
-    pretty = "--pretty" in args
-    args = [a for a in args if a != "--pretty"]
-    src = args[0]
-    text = read_steam(src)
-    if pretty:
+    text = read_steam(args.infile)
+    if args.pretty:
         try:
             text = json.dumps(json.loads(text), indent=2, ensure_ascii=False)
         except json.JSONDecodeError:
             pass
-    if len(args) >= 2:
-        with open(args[1], "w", encoding="utf-8") as f:
+    if args.outfile:
+        with open(args.outfile, "w", encoding="utf-8") as f:
             f.write(text)
         size = len(text.encode("utf-8"))
-        print(f"Written to {args[1]} ({size:,} bytes)")
+        print(f"Written to {args.outfile} ({size:,} bytes)")
     else:
         print(text)
 
 
 def cmd_json_to_steam(args):
-    if len(args) < 2:
-        die("Usage: json_to_steam <infile> <outfile>")
-    with open(args[0], "r", encoding="utf-8-sig") as f:
+    with open(args.infile, "r", encoding="utf-8-sig") as f:
         text = f.read()
-    write_steam(text, args[1])
-    print(f"Encrypted {args[0]} → {args[1]} (Steam format)")
+    write_steam(text, args.outfile)
+    print(f"Encrypted {args.infile} → {args.outfile} (Steam format)")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
-COMMANDS = {
-    "ios_to_json":   cmd_ios_to_json,
-    "ios_to_steam":  cmd_ios_to_steam,
-    "steam_to_json": cmd_steam_to_json,
-    "json_to_steam": cmd_json_to_steam,
-}
-
-
-def die(msg: str) -> None:
-    print(f"Error: {msg}", file=sys.stderr)
-    sys.exit(1)
-
-
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in COMMANDS:
-        print((__doc__ or "").strip())
-        sys.exit(0 if len(sys.argv) == 1 else 1)
-    COMMANDS[sys.argv[1]](sys.argv[2:])
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    p_ios_to_json = subparsers.add_parser("ios_to_json", help="Decompress iOS save to JSON")
+    p_ios_to_json.add_argument("infile", help="Input iOS file (no suffix)")
+    p_ios_to_json.add_argument("outfile", nargs="?", help="Output JSON file")
+    p_ios_to_json.add_argument("--pretty", action="store_true", help="Pretty print JSON")
+    p_ios_to_json.set_defaults(func=cmd_ios_to_json)
+
+    p_ios_to_steam = subparsers.add_parser("ios_to_steam", help="Convert iOS save to Steam format")
+    p_ios_to_steam.add_argument("infile", help="Input iOS file (no suffix)")
+    p_ios_to_steam.add_argument("outfile", help="Output Steam file (ending in .json)")
+    p_ios_to_steam.set_defaults(func=cmd_ios_to_steam)
+
+    p_steam_to_json = subparsers.add_parser("steam_to_json", help="Decrypt Steam save to JSON")
+    p_steam_to_json.add_argument("infile", help="Input Steam file (ending in .json)")
+    p_steam_to_json.add_argument("outfile", nargs="?", help="Output JSON file")
+    p_steam_to_json.add_argument("--pretty", action="store_true", help="Pretty print JSON")
+    p_steam_to_json.set_defaults(func=cmd_steam_to_json)
+
+    p_json_to_steam = subparsers.add_parser("json_to_steam", help="Encrypt JSON to Steam format")
+    p_json_to_steam.add_argument("infile", help="Input JSON file")
+    p_json_to_steam.add_argument("outfile", help="Output Steam file (ending in .json)")
+    p_json_to_steam.set_defaults(func=cmd_json_to_steam)
+
+    args = parser.parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":
